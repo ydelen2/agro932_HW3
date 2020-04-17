@@ -16,6 +16,7 @@ knitr::opts_knit$set(root.dir=normalizePath('../'))
 X <- matrix(c(5,6, 3,-4), nrow = 2, byrow = T)
 Y <- matrix(c(-12/19, 39/38), nrow = 2, byrow = T)
 X %*% Y
+
 ```
 
 
@@ -23,15 +24,18 @@ X %*% Y
 
 #Answer3
 ```{r}
-pheno_data <- read.csv("data/DATA_rootnum_age10_rootnum.csv", header = TRUE, stringsAsFactors = FALSE)
-#View(pheno_data)
-#hist(pheno_data$Derregressed_BV)
-#hist(pheno_data$Derregressed_BV, xlab="pheno_data$Derregressed_BV", col="red", breaks=100)
+loblolly_pheno <- read.csv("data/DATA_rootnum_age10_rootnum.csv", header = TRUE, stringsAsFactors = FALSE)
+#View(loblolly_pheno)
+#hist(loblolly_pheno$Derregressed_BV)
+#hist(loblolly_pheno$Derregressed_BV, xlab="loblolly_pheno$Derregressed_BV", col="red", breaks=100)
+
 geno_data <- "https://jyanglab.com/img/data/Snp_Data.csv"
+
 loblolly_geno <- read.csv(geno_data, header=TRUE, stringsAsFactors = FALSE)
 #head(loblolly_geno)
 #View(loblolly_geno)
-dim(pheno_data) #926 4
+
+dim(loblolly_pheno) #926 4
 dim(loblolly_geno) #926 4854
 loblolly_geno[1:5, 1:5]
 ```
@@ -39,22 +43,29 @@ loblolly_geno[1:5, 1:5]
 
 ## Remove missing phenotypes
 ```{r, eval=FALSE}
-is.na(pheno_data$Derregressed_BV)
-#sum(is.na(pheno_data$Derregressed_BV)) #1
-na.index <-  which(is.na(pheno_data$Derregressed_BV))
-#head(pheno_data[na.index,])
+is.na(loblolly_pheno$Derregressed_BV)
+#sum(is.na(loblolly_pheno$Derregressed_BV)) #1
+na.index <-  which(is.na(loblolly_pheno$Derregressed_BV))
+#head(loblolly_pheno[na.index,])
+
+
 length(na.index) #1
-pheno_data <- pheno_data[-na.index, ]
+loblolly_pheno <- loblolly_pheno[-na.index, ]
+
 #select genotypic dataframe by using phenotypic data
-loblolly_geno <- loblolly_geno[loblolly_geno$Genotype %in% pheno_data$Genotype, ]
+loblolly_geno <- loblolly_geno[loblolly_geno$Genotype %in% loblolly_pheno$Genotype, ]
+
 # phenotypes 
-y <- pheno_data$Derregressed_BV
+y <- loblolly_pheno$Derregressed_BV
 y <- matrix(y, ncol=1)
 y
+
 # markers 
 loblolly_geno <- loblolly_geno[,-1]  
 loblolly_geno[loblolly_geno == -9] <- NA
 dim(loblolly_geno) #925 4853
+
+
 ```
 
 
@@ -63,21 +74,24 @@ dim(loblolly_geno) #925 4853
 
 ```{r, eval=FALSE, echo=TRUE}
 # missing rate
-missing_snp <- apply(loblolly_geno, 2, function(x){sum(is.na(x))/length(x)})
-head(missing_snp)
-#length(missing_snp) #4853
-#hist(missing_snp, breaks=25)
+missingdata <- apply(loblolly_geno, 2, function(x){sum(is.na(x))/length(x)})
+head(missingdata)
+#length(missingdata) #4853
+#hist(missingdata, breaks=25)
+
+
 # minor allele frequency
 maf <- apply(loblolly_geno, 2, function(x){
   frq <- mean(x, na.rm=TRUE)/2
   return(ifelse(frq > 0.5, 1-frq, frq))
 })
+
 ```
 
 #### Plot the results
 ```{r, eval=FALSE, echo=TRUE}
-hist(missing_snp, breaks=50, col="red", xlab="SNP Missing rate")
-hist(maf, breaks=50, col="red", xlab="Minor Allele Freq")
+hist(missingdata, breaks=100, col="blue", xlab="SNP Missing rate")
+hist(maf, breaks=100, col="blue", xlab="Minor Allele Freq")
 ```
 
 
@@ -86,12 +100,13 @@ hist(maf, breaks=50, col="red", xlab="Minor Allele Freq")
 Removing SNPs with high missing rate (missingness > 0.2) and low MAF (MAF < 0.05)
 
 ```{r, eval=FALSE, echo=TRUE}
-idx1 <- which(missing_snp > 0.2) #155
+idx1 <- which(missingdata > 0.2) #155
 length(idx1)
 idx2 <- which(maf < 0.05) #1640
 length(idx2)
 idx <- unique(c(idx1, idx2)) #1779
 length(idx)
+
 loblolly_geno2 <- loblolly_geno[, -idx]
 dim(loblolly_geno2)  #925 3074
 loblolly_geno2[1:10, 1:5]
@@ -122,6 +137,7 @@ Standardize the genotype matrix to have a mean of zero and variance of one. Save
 ```{r, eval=FALSE, echo=TRUE}
 Zs <- scale(Z, center = TRUE, scale = TRUE)
 #Zs[1:10, 1:5]
+
 n <- nrow(Zs)
 n
 m <- ncol(Zs)
@@ -144,7 +160,7 @@ G <- G + diag(n)*0.001
 # Solve MME for GBLUP
 
 ```{r, eval=FALSE, echo=TRUE}
-lambda <- 4.087116 # fit$Ve / fit$Vu
+lambda <- 4.0871 # fit$Ve / fit$Vu
 Ginv <- solve(G)
 ones <- matrix(1, ncol=1, nrow=n)
 Z <- diag(n)
@@ -211,8 +227,11 @@ head(fit2$u)
 tail(fit2$u)
 # ratio of variance components 
 fit2$Ve / fit2$Vu
+
+
 plot(x=sol2[-1], y=fit2$u)
 cor(x=sol2[-1], y=fit2$u)
+
 ```
 
 
@@ -229,6 +248,8 @@ Gtrn <- Gtrn + diag(n.trn)*0.001
 Gtst.trn <- tcrossprod(Zs.tst, Zs.trn) / ncol(Zs.tst)
 #Gtrn <- G[1:n.trn, 1:n.trn]
 #Gtst.trn <- G[n.trn+1:n.tst, 1:n.trn]
+
+
 lambda <- 12566.89 # fit$Ve / fit$Vu
 Ginv.trn <- solve(Gtrn)
 ones <- matrix(1, ncol=1, nrow=n.trn)
@@ -238,6 +259,7 @@ LHS2 <- cbind(crossprod(Z, ones), crossprod(Z) +  Ginv.trn*lambda)
 LHS <- rbind(LHS1, LHS2)
 RHS <- rbind( crossprod(ones, y.trn), crossprod(Z,y.trn) )
 sol.trn <- solve(LHS, RHS)
+
 # prediction
 y.hat <- Gtst.trn %*% Ginv.trn %*% matrix(sol.trn[c(2:(n.trn+1))])
 cor(y.hat, y[(n.trn+1):n])
@@ -259,6 +281,7 @@ LHS2 <- cbind(crossprod(Zs.trn, ones), crossprod(Zs.trn) +  I*lambda)
 LHS <- rbind(LHS1, LHS2)
 RHS <- rbind( crossprod(ones, y.trn), crossprod(Zs.trn, y.trn) )
 sol.trn <- solve(LHS, RHS)
+
 # prediction
 y.hat2 <- Zs.tst %*% matrix(sol.trn[-1])
 head(y.hat2)
@@ -274,11 +297,14 @@ plot(y.hat2, y[(n.trn+1):n])
 
 ```{r}
 library("ggplot2")
-boxplot(y.hat, xlab = "GBLUP", ylab = "Prediction", main = "Prediction Accuracy")
-boxplot(y.hat2, xlab = "rrBLUP", ylab = "Prediction", main = "Prediction Accuracy")
-comb <- cbind(y.hat, y.hat2)
-head(comb)
-boxplot(comb, xlab = c("1.GBLUP", "2.rrBLUP"), ylab = "Prediction", main = "Prediction Accuracy Results")
+boxplot(y.hat, xlab = "GBLUP", ylab = "Prediction", main = "Prediction Accuracy Results")
+
+boxplot(y.hat2, xlab = "RRBLUP", ylab = "Prediction", main = "Prediction Accuracy Results")
+
+
+prediction2 <- cbind(y.hat, y.hat2)
+head(prediction2)
+boxplot(prediction2, xlab = c("1.GBLUP", "2.RRBLUP"), ylab = "Prediction", main = "Prediction Accuracy Results")
 
 
 #library("ggplot2")
@@ -289,4 +315,6 @@ boxplot(comb, xlab = c("1.GBLUP", "2.rrBLUP"), ylab = "Prediction", main = "Pred
 #  geom_boxplot(width=0.1, fill="white")+
 #  scale_fill_brewer(palette="Blues") + 
 #  theme_classic()
+
 ```
+
